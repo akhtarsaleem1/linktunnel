@@ -139,7 +139,7 @@ export class ClientNode extends EventEmitter {
         role: 'client',
         cipher: chosen.cipher,
         sendRaw: (pkt) => this.ws?.send(pkt, true) ?? false,
-        closeRaw: () => this.ws?.close(1000, 'Client closed'),
+        closeRaw: () => this.ws?.destroy(),
       });
 
       session.on('traffic', ({ tx, rx }) => {
@@ -190,6 +190,7 @@ export class ClientNode extends EventEmitter {
 
       this.ws.on('close', () => onDrop('Connection closed'));
       this.ws.on('error', (err) => onDrop(err.message));
+      session.on('close', (why) => onDrop(why));
 
       this.session = session;
       this.status = 'connected';

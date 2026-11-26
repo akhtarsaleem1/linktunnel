@@ -309,12 +309,19 @@ export class MuxSession extends EventEmitter {
     this.bytesTx = 0;
     this.bytesRx = 0;
     this.rttMs = null;
+    this.lastRxAt = Date.now();
     this._throttleQueue = [];
     this._throttleTimer = null;
 
     if (pingIntervalMs > 0) {
+      const timeoutMs = Math.max(pingIntervalMs * 3, 15000);
       this._pingTimer = setInterval(() => {
-        if (!this.closed) this.sendPing();
+        if (this.closed) return;
+        if (Date.now() - this.lastRxAt > timeoutMs) {
+          this.close('Heartbeat timeout (network switched or peer unreachable)');
+          return;
+        }
+        this.sendPing();
       }, pingIntervalMs);
       this._pingTimer.unref?.();
     }
@@ -357,6 +364,7 @@ export class MuxSession extends EventEmitter {
       return;
     }
 
+    this.lastRxAt = Date.now();
     this.bytesRx += packet.length;
     if (this.maxQuotaBytes > 0 && this.totalBytes > this.maxQuotaBytes) {
       this.kick('Data quota exceeded');
