@@ -270,6 +270,10 @@ function renderState(state) {
     sysBtn.disabled = false;
     sysBtn.textContent = 'Disable Windows System Proxy';
     sysBtn.className = 'btn btn-emerald btn-sm';
+  } else if (client.status !== 'connected') {
+    sysBtn.disabled = true;
+    sysBtn.textContent = 'Enable Windows System Proxy (Connect first)';
+    sysBtn.className = 'btn btn-secondary btn-sm';
   } else {
     sysBtn.disabled = false;
     sysBtn.textContent = 'Enable Windows System Proxy';

@@ -83,6 +83,7 @@ async function runUi(flags) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGBREAK', shutdown);
 }
 
 async function runRelay(flags) {
@@ -101,6 +102,7 @@ async function runRelay(flags) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGBREAK', shutdown);
 }
 
 async function runShare(flags) {
@@ -134,6 +136,7 @@ async function runShare(flags) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGBREAK', shutdown);
 }
 
 async function runConnect(positional, flags) {
@@ -183,6 +186,7 @@ async function runConnect(positional, flags) {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGBREAK', shutdown);
 }
 
 const isCloudRelayEnv =

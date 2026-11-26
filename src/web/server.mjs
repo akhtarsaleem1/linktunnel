@@ -9,7 +9,12 @@ import { UnifiedProxyServer } from '../node/proxy.mjs';
 import { SharerNode } from '../node/sharer.mjs';
 import { generateQrSvg } from '../protocol/qr.mjs';
 import { acceptWsUpgrade } from '../protocol/ws.mjs';
-import { enableWindowsSystemProxy, readWindowsProxySettings, restoreWindowsSystemProxy } from '../platform/win-proxy.mjs';
+import {
+  enableWindowsSystemProxy,
+  readWindowsProxySettings,
+  restoreWindowsSystemProxy,
+  restoreWindowsSystemProxySync,
+} from '../platform/win-proxy.mjs';
 import { RelayServer } from '../relay/server.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -94,9 +99,21 @@ export class LinkTunnelApp {
     this._broadcastTimer = null;
 
     const pushUpdate = () => this._scheduleBroadcast();
-    this.clientNode.on('state', pushUpdate);
+    this.clientNode.on('state', (st) => {
+      if (this.winProxyActive && (st.status === 'disconnected' || st.status === 'error')) {
+        this.setSystemProxy(false).catch(() => {});
+      }
+      pushUpdate();
+    });
     this.clientNode.on('log', pushUpdate);
     this.proxyServer.on('state', pushUpdate);
+
+    this._onProcessExit = () => {
+      if (this.winProxyActive) {
+        restoreWindowsSystemProxySync(this.store.get().winProxyBackup);
+      }
+    };
+    process.on('exit', this._onProcessExit);
   }
 
   async start() {
@@ -453,6 +470,9 @@ export class LinkTunnelApp {
   async setSystemProxy(enabled) {
     const cfg = this.store.get();
     if (enabled) {
+      if (this.clientNode.status !== 'connected') {
+        throw new Error('Connect to a remote tunnel first before enabling Windows System Proxy');
+      }
       const { backup } = await enableWindowsSystemProxy(this.proxyServer.port, cfg.winProxyBackup);
       this.winProxyActive = true;
       this.store.update({ winProxyBackup: backup, winProxyManaged: true });
@@ -465,6 +485,9 @@ export class LinkTunnelApp {
 
   async stop() {
     clearTimeout(this._broadcastTimer);
+    if (this._onProcessExit) {
+      process.removeListener('exit', this._onProcessExit);
+    }
     if (this.winProxyActive) {
       await this.setSystemProxy(false).catch(() => {});
     }

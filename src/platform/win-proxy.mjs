@@ -1,9 +1,14 @@
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const REG_PATH = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings';
 const DEFAULT_BYPASS = 'localhost;127.*;10.*;172.16.*;192.168.*;*.local;<local>';
+const WININET_REFRESH_PS = `
+Add-Type -Namespace WinInet -Name Native -MemberDefinition '[DllImport("wininet.dll", SetLastError=true)] public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);'
+[WinInet.Native]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null
+[WinInet.Native]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
+`;
 
 export function parseRegQueryValue(output, valueName) {
   const regex = new RegExp(`^\\s*${valueName}\\s+REG_\\w+\\s+(.*)$`, 'mi');
@@ -34,12 +39,7 @@ export async function readWindowsProxySettings() {
 
 async function notifyWinInetRefresh() {
   if (process.platform !== 'win32') return;
-  const script = `
-Add-Type -Namespace WinInet -Name Native -MemberDefinition '[DllImport("wininet.dll", SetLastError=true)] public static extern bool InternetSetOption(IntPtr hInternet, int dwOption, IntPtr lpBuffer, int dwBufferLength);'
-[WinInet.Native]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null
-[WinInet.Native]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null
-`;
-  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script]);
+  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WININET_REFRESH_PS]);
 }
 
 /**
@@ -80,7 +80,37 @@ export async function restoreWindowsSystemProxy(backup = null) {
     }
   } else {
     await execFileAsync('reg.exe', ['add', REG_PATH, '/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', '0', '/f']);
+    await execFileAsync('reg.exe', ['delete', REG_PATH, '/v', 'ProxyServer', '/f']).catch(() => {});
   }
   await notifyWinInetRefresh();
   return { restored: true };
+}
+
+/**
+ * Synchronous fallback used on abrupt Node exit so browsers never remain stuck on 127.0.0.1.
+ */
+export function restoreWindowsSystemProxySync(backup = null) {
+  if (process.platform !== 'win32') return;
+  try {
+    if (backup && backup.supported) {
+      execFileSync('reg.exe', ['add', REG_PATH, '/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', backup.enabled ? '1' : '0', '/f']);
+      if (backup.proxyServer) {
+        execFileSync('reg.exe', ['add', REG_PATH, '/v', 'ProxyServer', '/t', 'REG_SZ', '/d', backup.proxyServer, '/f']);
+      } else {
+        try {
+          execFileSync('reg.exe', ['delete', REG_PATH, '/v', 'ProxyServer', '/f']);
+        } catch {
+          // ignore
+        }
+      }
+      if (backup.proxyOverride) {
+        execFileSync('reg.exe', ['add', REG_PATH, '/v', 'ProxyOverride', '/t', 'REG_SZ', '/d', backup.proxyOverride, '/f']);
+      }
+    } else {
+      execFileSync('reg.exe', ['add', REG_PATH, '/v', 'ProxyEnable', '/t', 'REG_DWORD', '/d', '0', '/f']);
+    }
+    execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WININET_REFRESH_PS]);
+  } catch {
+    // best-effort on exit
+  }
 }
