@@ -185,7 +185,10 @@ async function runConnect(positional, flags) {
   process.on('SIGTERM', shutdown);
 }
 
-const defaultCommand = process.env.RENDER === 'true' ? 'relay' : 'ui';
+const isCloudRelayEnv =
+  process.env.RENDER === 'true' ||
+  Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_ID || process.env.FLY_APP_NAME);
+const defaultCommand = isCloudRelayEnv ? 'relay' : 'ui';
 const { command, positional, flags } = parseArgs(process.argv.slice(2), defaultCommand);
 
 if (flags.help || flags.h || command === 'help') {
