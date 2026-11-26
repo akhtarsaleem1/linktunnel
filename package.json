@@ -1,0 +1,32 @@
+{
+  "name": "linktunnel",
+  "version": "1.0.0",
+  "description": "End-to-end encrypted long-distance internet sharing tunnel (Relay + Direct hybrid, SOCKS5/HTTP proxy, Web UI & CLI)",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "bin": {
+    "linktunnel": "./bin/linktunnel.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/linktunnel.mjs",
+    "start:ui": "node ./bin/linktunnel.mjs ui",
+    "relay": "node ./bin/linktunnel.mjs relay --host 0.0.0.0",
+    "share": "node ./bin/linktunnel.mjs share",
+    "connect": "node ./bin/linktunnel.mjs connect",
+    "test": "node --test ./test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "tunnel",
+    "vpn",
+    "proxy",
+    "socks5",
+    "internet-sharing",
+    "e2ee",
+    "relay",
+    "p2p"
+  ],
+  "license": "MIT"
+}

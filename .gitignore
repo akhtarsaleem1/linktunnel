@@ -1,0 +1,7 @@
+node_modules/
+.linktunnel/
+data/
+*.log
+.env
+.DS_Store
+Thumbs.db

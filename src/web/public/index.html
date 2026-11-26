@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkTunnel — Long-Distance Encrypted Internet Sharing</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </div>
+        <div>
+          <h1>LinkTunnel</h1>
+          <span class="subtitle">X25519 + ChaCha20-Poly1305 E2EE Internet Tunnel</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="device-pill">
+          <span class="muted">Device:</span>
+          <input id="deviceNameInput" type="text" maxlength="48" aria-label="Device Name" />
+          <button id="saveDeviceBtn" class="btn btn-ghost btn-sm">Save</button>
+        </div>
+        <button id="relayToggleBtn" class="btn btn-secondary btn-sm">Start Local Relay</button>
+        <div id="globalStatusPill" class="status-pill status-idle">
+          <span class="dot"></span>
+          <span id="globalStatusText">Ready</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Live Topology & Telemetry Banner -->
+    <section class="panel topology-panel">
+      <div class="topology-diagram">
+        <div class="node-box">
+          <div class="node-tag">THIS DEVICE</div>
+          <div class="node-title" id="topoLocalName">My-Device</div>
+          <div class="node-sub" id="topoProxyAddr">Proxy 127.0.0.1:10808</div>
+        </div>
+
+        <div class="tunnel-link" id="topoLinkVisual">
+          <div class="link-badges">
+            <span class="badge badge-cipher">E2EE Encrypted</span>
+            <span class="badge" id="topoTransportBadge">Idle</span>
+            <span class="badge" id="topoSafetyBadge" hidden>Safety: —</span>
+          </div>
+          <div class="link-line"><span class="pulse-packet"></span></div>
+          <div class="link-meta">
+            <span id="topoRtt">RTT: —</span>
+            <span>•</span>
+            <span id="topoStreams">Streams: 0</span>
+          </div>
+        </div>
+
+        <div class="node-box">
+          <div class="node-tag">REMOTE EXIT NODE</div>
+          <div class="node-title" id="topoRemoteName">Not Connected</div>
+          <div class="node-sub" id="topoExitIp">Exit IP: —</div>
+        </div>
+      </div>
+
+      <div class="telemetry-strip">
+        <div class="metric-card">
+          <span class="metric-label">Download</span>
+          <strong class="metric-val cyan" id="metricRxRate">0 KB/s</strong>
+          <span class="metric-sub" id="metricRxTotal">Total 0 B</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Upload</span>
+          <strong class="metric-val emerald" id="metricTxRate">0 KB/s</strong>
+          <span class="metric-sub" id="metricTxTotal">Total 0 B</span>
+        </div>
+        <div class="metric-card sparkline-card">
+          <span class="metric-label">Live Throughput (30s)</span>
+          <svg id="sparklineSvg" viewBox="0 0 280 44" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dual Mutual Modes -->
+    <main class="workspace-grid">
+      <!-- LEFT: SHARE MY INTERNET -->
+      <section class="panel card">
+        <div class="card-header">
+          <div>
+            <h2>Share My Internet</h2>
+            <p class="muted">Turn this device into an encrypted exit node for distant peers.</p>
+          </div>
+          <span id="sharerBadge" class="pill pill-off">Offline</span>
+        </div>
+
+        <form id="shareForm" class="form-grid">
+          <div class="field full">
+            <label for="shareRelayUrl">Relay Server URL <span class="hint">(needed if behind NAT/different Wi-Fi)</span></label>
+            <div class="input-row">
+              <input id="shareRelayUrl" type="text" placeholder="wss://your-relay.example.com/relay or ws://127.0.0.1:4320/relay" />
+              <button type="button" id="useLocalRelayShareBtn" class="btn btn-ghost btn-sm">Use Local</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="shareRoomCode">Pair Code <span class="hint">(auto if blank)</span></label>
+            <input id="shareRoomCode" type="text" placeholder="LT-XXXX-XXXX" />
+          </div>
+          <div class="field">
+            <label for="shareSecret">Secret / Passphrase <span class="hint">(auto if blank)</span></label>
+            <input id="shareSecret" type="text" placeholder="Auto-generated strong key" />
+          </div>
+
+          <div class="field">
+            <label for="shareDirectPort">Direct Listen Port</label>
+            <input id="shareDirectPort" type="number" value="4322" min="1" max="65535" />
+          </div>
+          <div class="field">
+            <label for="sharePublicHost">Public IP / DDNS <span class="hint">(optional)</span></label>
+            <input id="sharePublicHost" type="text" placeholder="home.ddns.net" />
+          </div>
+
+          <div class="field">
+            <label for="shareMaxMbps">Speed Limit (Mbps, 0 = ∞)</label>
+            <input id="shareMaxMbps" type="number" value="0" min="0" step="0.5" />
+          </div>
+          <div class="field">
+            <label for="shareMaxQuotaMb">Data Cap (MB, 0 = ∞)</label>
+            <input id="shareMaxQuotaMb" type="number" value="0" min="0" step="50" />
+          </div>
+
+          <label class="checkbox-row full">
+            <input id="shareBlockPrivate" type="checkbox" checked />
+            <span>Block remote peers from accessing my private LAN &amp; router (SSRF protection)</span>
+          </label>
+
+          <div class="actions-row full">
+            <button type="submit" id="startShareBtn" class="btn btn-emerald">Start Sharing Internet</button>
+            <button type="button" id="pauseShareBtn" class="btn btn-secondary" hidden>Pause</button>
+            <button type="button" id="stopShareBtn" class="btn btn-danger" hidden>Stop Sharing</button>
+          </div>
+        </form>
+
+        <!-- Active Share Invite Panel -->
+        <div id="shareActiveBox" class="subpanel" hidden>
+          <div class="invite-layout">
+            <div class="invite-details">
+              <div class="kv-row">
+                <span class="kv-label">Pair Code</span>
+                <code id="activeRoomCode" class="code-chip">—</code>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">Secret</span>
+                <code id="activeSecret" class="code-chip">—</code>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">Relay Status</span>
+                <span id="activeRelayStatus" class="muted">—</span>
+              </div>
+              <div class="kv-row">
+                <span class="kv-label">Shared Data</span>
+                <span id="activeShareTraffic" class="muted">0 B</span>
+              </div>
+              <div class="invite-uri-box">
+                <input id="activeInviteUri" type="text" readonly aria-label="Invite URI" />
+                <button type="button" id="copyInviteBtn" class="btn btn-primary btn-sm">Copy Invite</button>
+              </div>
+            </div>
+            <div class="qr-box" title="Scan with another device">
+              <img id="shareQrImg" alt="Invite QR Code" />
+              <span>Peer Invite QR</span>
+            </div>
+          </div>
+
+          <div class="peers-section">
+            <h3>Connected Peers (<span id="connectedPeerCount">0</span>)</h3>
+            <div id="connectedPeersList" class="peer-list">
+              <div class="empty-state">Waiting for remote devices to connect...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: USE REMOTE INTERNET -->
+      <section class="panel card">
+        <div class="card-header">
+          <div>
+            <h2>Use Remote Internet</h2>
+            <p class="muted">Route traffic through a remote friend or home device securely.</p>
+          </div>
+          <span id="clientBadge" class="pill pill-off">Disconnected</span>
+        </div>
+
+        <div id="savedPeersSection" class="saved-peers" hidden>
+          <span class="kv-label">Saved Peers:</span>
+          <div id="savedPeersChips" class="chips-wrap"></div>
+        </div>
+
+        <form id="connectForm" class="form-grid">
+          <div class="field full">
+            <label for="connectInviteUri">Paste Invite Link <span class="hint">(linktunnel://...)</span></label>
+            <input id="connectInviteUri" type="text" placeholder="linktunnel://v1?d=..." />
+          </div>
+
+          <div class="divider-or full"><span>or enter details manually</span></div>
+
+          <div class="field">
+            <label for="connectRoomCode">Pair Code</label>
+            <input id="connectRoomCode" type="text" placeholder="LT-XXXX-XXXX" />
+          </div>
+          <div class="field">
+            <label for="connectSecret">Secret</label>
+            <input id="connectSecret" type="password" placeholder="Pairing secret" />
+          </div>
+
+          <div class="field">
+            <label for="connectRelayUrl">Relay URL</label>
+            <input id="connectRelayUrl" type="text" placeholder="wss://relay.example.com/relay" />
+          </div>
+          <div class="field">
+            <label for="connectDirectUrl">Direct Endpoint <span class="hint">(optional)</span></label>
+            <input id="connectDirectUrl" type="text" placeholder="ws://1.2.3.4:4322/tunnel" />
+          </div>
+
+          <div class="field full">
+            <label for="connectMode">Transport Strategy</label>
+            <select id="connectMode">
+              <option value="hybrid">Hybrid (Auto-prefer Direct P2P, seamless Relay fallback)</option>
+              <option value="relay">Relay Only (NAT/CGNAT safe)</option>
+              <option value="direct">Direct P2P Only (lowest latency)</option>
+            </select>
+          </div>
+
+          <div class="actions-row full">
+            <button type="submit" id="connectBtn" class="btn btn-primary">Connect to Tunnel</button>
+            <button type="button" id="checkExitIpBtn" class="btn btn-secondary" hidden>Verify Exit IP</button>
+            <button type="button" id="disconnectBtn" class="btn btn-danger" hidden>Disconnect</button>
+          </div>
+        </form>
+
+        <!-- Local Proxy & Mobile Setup Box -->
+        <div class="subpanel proxy-panel">
+          <div class="proxy-header">
+            <div>
+              <h3>Local Proxy &amp; Device Routing</h3>
+              <p class="muted">Unified listener supports <strong>SOCKS5</strong>, <strong>HTTP/HTTPS</strong>, and <strong>PAC</strong> on one port.</p>
+            </div>
+            <div class="sysproxy-box">
+              <button type="button" id="toggleSysProxyBtn" class="btn btn-secondary btn-sm">Enable Windows System Proxy</button>
+            </div>
+          </div>
+
+          <div class="proxy-controls">
+            <div class="kv-row">
+              <span class="kv-label">Local Endpoint</span>
+              <code id="proxyEndpointCode" class="code-chip">127.0.0.1:10808</code>
+            </div>
+            <label class="checkbox-row">
+              <input id="lanExposeCheck" type="checkbox" />
+              <span>Share this tunnel with nearby phones/tablets on my Wi-Fi/LAN</span>
+            </label>
+          </div>
+
+          <div id="mobileSetupBox" class="mobile-setup" hidden>
+            <div class="mobile-grid">
+              <div>
+                <h4>Mobile / Nearby Device Setup</h4>
+                <ol class="steps-ol">
+                  <li>Connect phone to the same Wi-Fi as this PC.</li>
+                  <li>Open Wi-Fi network settings → <strong>Proxy → Manual</strong> (or Auto-Config PAC).</li>
+                  <li>Server: <code id="lanProxyHost">—</code> &nbsp; Port: <code id="lanProxyPort">10808</code></li>
+                  <li>Or PAC URL: <code id="lanPacUrl">—</code></li>
+                </ol>
+              </div>
+              <div class="qr-box">
+                <img id="mobileQrImg" alt="Mobile PAC QR" />
+                <span>Scan PAC URL</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Long-Distance Relay Guide + Activity Log -->
+    <section class="bottom-grid">
+      <section class="panel card">
+        <div class="card-header">
+          <div>
+            <h2>Long-Distance Relay Setup</h2>
+            <p class="muted">To connect devices on completely different networks/cities, run a lightweight zero-knowledge relay anywhere reachable.</p>
+          </div>
+        </div>
+        <div class="snippet-list">
+          <div class="snippet">
+            <span class="snippet-title">1. On any Cloud VPS (Ubuntu/Debian/Docker):</span>
+            <code>node bin/linktunnel.mjs relay --port 4320</code>
+          </div>
+          <div class="snippet">
+            <span class="snippet-title">2. Or expose a Local Relay instantly via Cloudflare Quick Tunnel (no VPS needed):</span>
+            <code>cloudflared tunnel --url http://localhost:4320</code>
+          </div>
+          <div class="snippet">
+            <span class="snippet-title">3. Or test right now on localhost / LAN:</span>
+            <span class="muted">Click <strong>Start Local Relay</strong> in the top bar, then click <strong>Use Local</strong> in the Share panel.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel card">
+        <div class="card-header">
+          <h2>Live Activity Log</h2>
+        </div>
+        <div id="logFeed" class="log-feed">
+          <div class="log-entry muted">Waiting for events...</div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

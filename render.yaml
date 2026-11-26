@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: linktunnel-relay
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node bin/linktunnel.mjs relay --host 0.0.0.0
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
