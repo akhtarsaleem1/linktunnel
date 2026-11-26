@@ -150,15 +150,20 @@ export async function resolveAndValidateTarget(host, port, policy = {}) {
  * Lists non-internal local IPv4 addresses (for LAN mobile setup and direct endpoint hints).
  */
 export function getLocalLanIps() {
-  const ifaces = os.networkInterfaces();
-  const ips = [];
-  for (const [name, addrs] of Object.entries(ifaces)) {
-    if (!addrs) continue;
-    for (const info of addrs) {
-      if (info.family === 'IPv4' && !info.internal) {
-        ips.push({ interface: name, address: info.address });
+  try {
+    const ifaces = os.networkInterfaces();
+    const ips = [];
+    for (const [name, addrs] of Object.entries(ifaces)) {
+      if (!addrs) continue;
+      for (const info of addrs) {
+        if (info.family === 'IPv4' && !info.internal) {
+          ips.push({ interface: name, address: info.address });
+        }
       }
     }
+    return ips;
+  } catch {
+    // Non-rooted Android 11+ (Termux) may deny netlink interface enumeration
+    return [];
   }
-  return ips;
 }

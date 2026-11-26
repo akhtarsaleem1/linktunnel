@@ -48,6 +48,12 @@ function readJsonBody(req, maxBytes = 1024 * 1024) {
   });
 }
 
+function normalizeRelayUrl(url) {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/^(wss?:\/\/)0\.0\.0\.0(:|\/|$)/i, '$1127.0.0.1$2');
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
@@ -241,7 +247,9 @@ export class LinkTunnelApp {
       const cfg = this.store.get();
       const maxMbps = Number(body.maxBandwidthMbps) || 0;
       const maxQuotaMb = Number(body.maxQuotaMb) || 0;
-      const relayUrl = typeof body.relayUrl === 'string' ? body.relayUrl.trim() : cfg.defaultRelayUrl;
+      const relayUrl = normalizeRelayUrl(
+        typeof body.relayUrl === 'string' ? body.relayUrl : cfg.defaultRelayUrl
+      );
 
       const parsedDirectPort =
         body.directPort !== undefined && body.directPort !== '' && body.directPort !== null
@@ -335,7 +343,7 @@ export class LinkTunnelApp {
         inviteUri: body.inviteUri,
         roomCode: body.roomCode,
         secret: body.secret,
-        relayUrl: body.relayUrl,
+        relayUrl: body.relayUrl !== undefined ? normalizeRelayUrl(body.relayUrl) : undefined,
         directEndpoints: body.directEndpoints,
         mode: body.mode || 'hybrid',
       });

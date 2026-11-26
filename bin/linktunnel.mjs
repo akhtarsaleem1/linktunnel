@@ -90,8 +90,10 @@ async function runRelay(flags) {
   const host = String(flags.host || '0.0.0.0');
   const relay = new RelayServer({ host, port });
   const info = await relay.start();
-  console.log(`LinkTunnel E2EE Relay listening on ws://${info.host}:${info.port}/relay`);
-  console.log(`Health endpoint: http://${info.host}:${info.port}/health`);
+  const connectHost = info.host === '0.0.0.0' || info.host === '::' ? '127.0.0.1' : info.host;
+  console.log(`LinkTunnel E2EE Relay bound on ${info.host}:${info.port}`);
+  console.log(`Local Relay URL : ws://${connectHost}:${info.port}/relay`);
+  console.log(`Health endpoint : http://${connectHost}:${info.port}/health`);
 
   const shutdown = async () => {
     await relay.stop();
